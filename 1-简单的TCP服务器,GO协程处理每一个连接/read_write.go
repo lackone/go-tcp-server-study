@@ -6,14 +6,13 @@ import (
 	"io"
 	"log"
 	"net"
-	"os"
 	"strings"
 )
 
-// 保存所有的TCP连接
-var connections = make([]net.Conn, 0)
-
 func main() {
+	// 保存所有的TCP连接
+	var connections = make([]net.Conn, 0)
+
 	//监听8080端口
 	listen, err := net.Listen("tcp", ":8080")
 	if err != nil {
@@ -35,22 +34,22 @@ func main() {
 			continue
 		}
 
+		msg := make(chan []byte)
+
 		//把连接加入connections中
 		connections = append(connections, conn)
 
-		//每一个连接过来，都会创建一个GO协程来处理，连接上的读写操作
-		go handleConn(conn)
+		//每一个连接过来，都会创建二个GO协程来处理，读写分离
+		go readLoop(conn, msg)
+		go writeLoop(conn, msg)
 	}
 }
 
-// 每一个连接过来，都会创建一个GO协程来处理，连接上的读写操作
-// 这种模式有一个问题，就是短时间内如果有大量的连接请求，GO协程的数量会爆涨，导致GO语言本身的调度压力很大
-func handleConn(conn net.Conn) {
+// 读循环
+func readLoop(conn net.Conn, msg chan []byte) {
 	defer conn.Close()
 
-	serverInput := bufio.NewReader(os.Stdin)
 	connReader := bufio.NewReader(conn)
-
 	for {
 		clientData, err := connReader.ReadString('\n')
 		if err != nil {
@@ -59,15 +58,19 @@ func handleConn(conn net.Conn) {
 				return
 			}
 		}
+
 		fmt.Println("client msg :", strings.Trim(clientData, "\r\n"))
 
-		serverData, err := serverInput.ReadString('\n')
-		if err != nil {
-			log.Println(err)
-			if err == io.EOF {
-				return
-			}
+		msg <- []byte(clientData)
+	}
+}
+
+// 写循环
+func writeLoop(conn net.Conn, msg chan []byte) {
+	for {
+		select {
+		case data := <-msg:
+			conn.Write([]byte("server msg :" + string(data)))
 		}
-		conn.Write([]byte("server msg :" + serverData + "\n"))
 	}
 }
