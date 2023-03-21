@@ -5,6 +5,7 @@ package epoll
 
 import (
 	"net"
+	"reflect"
 	"sync"
 	"syscall"
 )
@@ -29,13 +30,22 @@ func NewEpoll() (*Epoll, error) {
 }
 
 // 获取连接fd
-func (e *Epoll) SocketFD(conn net.Conn) int {
+// 使用该方法获取FD有问题，因为tcpConn.File底层调用的是c.fd.dup()，会创建一个新的文件描述符指向原来的FD，我们通过该FD向Epoll中添加或删除时，会有问题，因为FD的值变了。
+func (e *Epoll) SocketFD2(conn net.Conn) int {
 	//断言，转换成*net.TCPConn
 	tcpConn, _ := conn.(*net.TCPConn)
 	//获取底层os.File指针
 	tcpConnFile, _ := tcpConn.File()
 	//获取FD
 	return int(tcpConnFile.Fd())
+}
+
+// 获取连接fd
+func (e *Epoll) SocketFD(conn net.Conn) int {
+	tcpConn := reflect.Indirect(reflect.ValueOf(conn)).FieldByName("conn")
+	fdVal := tcpConn.FieldByName("fd")
+	pfdVal := reflect.Indirect(fdVal).FieldByName("pfd")
+	return int(pfdVal.FieldByName("Sysfd").Int())
 }
 
 // 从epoll中删除监听事件

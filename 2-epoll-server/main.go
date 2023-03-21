@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/lackone/go-tcp-server-study/2-epoll-server/epoll"
+	"io"
 	"log"
 	"net"
 	"strings"
@@ -50,16 +51,17 @@ func run() {
 		}
 		//遍历连接，读取数据
 		for _, conn := range conns {
-			if conn == nil {
-				break
-			}
 			n, err := conn.Read(buf)
 			if err != nil {
 				log.Println("conn read ", err)
-				if err := newEpoll.Del(conn); err != nil {
-					log.Println("epoll del ", err)
+				if err == io.EOF {
+					err = newEpoll.Del(conn)
+					if err != nil {
+						log.Println("epoll del ", err)
+					}
+					conn.Close()
+					continue
 				}
-				conn.Close()
 			}
 			fmt.Println("client msg :", strings.Trim(string(buf[:n]), "\r\n"))
 
