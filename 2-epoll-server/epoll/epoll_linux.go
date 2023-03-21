@@ -35,14 +35,14 @@ func (e *Epoll) SocketFD(conn net.Conn) int {
 	//获取底层os.File指针
 	tcpConnFile, _ := tcpConn.File()
 	//获取FD
-	return tcpConnFile.Fd()
+	return int(tcpConnFile.Fd())
 }
 
 // 从epoll中删除监听事件
 func (e *Epoll) Del(conn net.Conn) error {
 	fd := e.SocketFD(conn)
 	event := syscall.EpollEvent{
-		Events: syscall.EPOLLIN | syscall.EPOLLERR | syscall.EPOLLHUP,
+		Events: syscall.EPOLLIN | syscall.EPOLLHUP,
 		Fd:     int32(fd),
 	}
 	err := syscall.EpollCtl(e.epollFd, syscall.EPOLL_CTL_DEL, fd, &event)
@@ -61,7 +61,7 @@ func (e *Epoll) Del(conn net.Conn) error {
 func (e *Epoll) Add(conn net.Conn) error {
 	fd := e.SocketFD(conn)
 	event := syscall.EpollEvent{
-		Events: syscall.EPOLLIN | syscall.EPOLLERR | syscall.EPOLLHUP,
+		Events: syscall.EPOLLIN | syscall.EPOLLHUP,
 		Fd:     int32(fd),
 	}
 	err := syscall.EpollCtl(e.epollFd, syscall.EPOLL_CTL_ADD, fd, &event)
@@ -82,7 +82,7 @@ func (e *Epoll) Wait() ([]net.Conn, error) {
 retry:
 	size, err := syscall.EpollWait(e.epollFd, events, -1)
 	if err != nil {
-		if err == unix.EINTR {
+		if err == syscall.EINTR {
 			goto retry
 		}
 		return nil, err

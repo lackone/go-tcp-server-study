@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/lackone/go-tcp-server-study/2-基于Epoll的服务器/epoll"
-	"io"
+	"github.com/lackone/go-tcp-server-study/2-epoll-server/epoll"
 	"log"
 	"net"
+	"strings"
 )
 
 var newEpoll *epoll.Epoll
@@ -45,20 +45,23 @@ func run() {
 		//等待有事件发生的连接
 		conns, err := newEpoll.Wait()
 		if err != nil {
-			log.Println(err)
+			log.Println("epoll wait ", err)
 			continue
 		}
 		//遍历连接，读取数据
 		for _, conn := range conns {
+			if conn == nil {
+				break
+			}
 			n, err := conn.Read(buf)
 			if err != nil {
-				log.Println(err)
-				if err == io.EOF {
-					newEpoll.Del(conn)
-					conn.Close()
+				log.Println("conn read ", err)
+				if err := newEpoll.Del(conn); err != nil {
+					log.Println("epoll del ", err)
 				}
+				conn.Close()
 			}
-			fmt.Println("client msg :", string(buf[:n]))
+			fmt.Println("client msg :", strings.Trim(string(buf[:n]), "\r\n"))
 
 			conn.Write([]byte("server msg :" + string(buf[:n])))
 		}
